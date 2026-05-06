@@ -1,0 +1,1051 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>踊り病 1518 — The Dancing Plague</title>
+<meta name="description" content="1518年ストラスブール。一人の女性が踊り始めた。やがて街全体が——。歴史的事件を追体験する戦略シミュレーション。">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;overflow:hidden;background:#1a1008;font-family:'Helvetica Neue',Arial,sans-serif;color:#e8dcc8;touch-action:none;user-select:none}
+
+/* ── Title Screen ── */
+#title-screen{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:radial-gradient(ellipse at 50% 60%,#2a1a0a 0%,#0d0804 70%);z-index:100;transition:opacity 1s}
+#title-screen.hidden{opacity:0;pointer-events:none}
+.title-main{font-size:clamp(36px,8vw,72px);font-weight:900;letter-spacing:2px;color:#c4956a;text-shadow:0 0 40px rgba(196,149,106,0.4)}
+.title-sub{font-size:clamp(14px,3vw,22px);color:#8a7a60;margin-top:8px;letter-spacing:4px}
+.title-year{font-size:clamp(80px,15vw,140px);font-weight:100;color:#3a2a18;margin:-20px 0 -10px;letter-spacing:20px}
+.title-desc{max-width:520px;text-align:center;font-size:clamp(12px,2.5vw,15px);color:#6a5a48;line-height:1.8;margin:30px 20px 0;padding:0 20px}
+.title-start{margin-top:40px;padding:16px 48px;background:none;border:2px solid #6a5a48;border-radius:40px;color:#c4956a;font-size:16px;font-weight:600;letter-spacing:3px;cursor:pointer;transition:all 0.3s}
+.title-start:hover{background:#c4956a;color:#1a1008;border-color:#c4956a}
+.lang-toggle{position:absolute;top:16px;right:16px;background:none;border:1px solid #3a3020;color:#6a5a48;padding:6px 14px;border-radius:20px;font-size:12px;cursor:pointer}
+
+/* ── Game UI ── */
+#game-container{position:absolute;inset:0;display:none}
+#game-container.active{display:flex;flex-direction:column}
+
+/* Top bar */
+.top-bar{display:flex;align-items:center;justify-content:space-between;padding:8px 14px;background:#0d0804;border-bottom:1px solid #2a2018;flex-shrink:0;gap:8px;flex-wrap:wrap}
+.stat{display:flex;align-items:center;gap:5px;font-size:12px;color:#8a7a60;white-space:nowrap}
+.stat-val{color:#c4956a;font-weight:700;font-size:14px}
+.stat-icon{font-size:16px}
+.day-label{font-size:13px;color:#c4956a;font-weight:700}
+
+/* Canvas */
+#game-canvas{flex:1;width:100%;cursor:crosshair;image-rendering:pixelated}
+
+/* Bottom panel */
+.bottom-panel{background:#0d0804;border-top:1px solid #2a2018;padding:8px 10px;flex-shrink:0}
+.actions{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;padding-bottom:4px}
+.actions::-webkit-scrollbar{display:none}
+.action-btn{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 12px;background:#1a1208;border:1px solid #2a2018;border-radius:10px;color:#8a7a60;font-size:10px;cursor:pointer;transition:all 0.2s;min-width:72px;text-align:center;position:relative}
+.action-btn:hover:not(.disabled){border-color:#6a5a48;color:#c4956a}
+.action-btn.disabled{opacity:0.35;cursor:not-allowed}
+.action-btn.trap{border-color:#6a2a2a}
+.action-btn .act-icon{font-size:22px}
+.action-btn .act-cost{font-size:9px;color:#6a5a48}
+.action-btn .cooldown-bar{position:absolute;bottom:0;left:0;height:3px;background:#c4956a;border-radius:0 0 10px 10px;transition:width 0.3s}
+
+/* Event log */
+.event-log{height:28px;overflow:hidden;padding:4px 14px;font-size:11px;color:#6a5a48;line-height:28px;background:#0a0604;border-top:1px solid #1a1208;flex-shrink:0;white-space:nowrap;text-overflow:ellipsis}
+
+/* ── Result Screen ── */
+#result-screen{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;background:rgba(13,8,4,0.95);z-index:200;padding:20px}
+#result-screen.active{display:flex}
+.result-title{font-size:clamp(28px,6vw,48px);font-weight:900;color:#c4956a;margin-bottom:10px}
+.result-subtitle{font-size:16px;color:#8a7a60;margin-bottom:30px;text-align:center;max-width:400px;line-height:1.7}
+.result-stats{display:flex;flex-direction:column;gap:8px;margin-bottom:30px;text-align:center}
+.result-stat{font-size:14px;color:#6a5a48}
+.result-stat span{color:#c4956a;font-weight:700}
+.insight-box{max-width:500px;background:#1a1208;border:1px solid #2a2018;border-radius:12px;padding:20px 24px;margin-bottom:30px;text-align:center}
+.insight-label{font-size:11px;letter-spacing:2px;color:#6a5a48;margin-bottom:10px;text-transform:uppercase}
+.insight-text{font-size:14px;color:#c4956a;line-height:1.8}
+.result-btn{padding:14px 40px;background:none;border:2px solid #6a5a48;border-radius:40px;color:#c4956a;font-size:15px;font-weight:600;letter-spacing:2px;cursor:pointer;transition:all 0.3s}
+.result-btn:hover{background:#c4956a;color:#1a1008}
+
+/* ── Tutorial overlay ── */
+.tutorial{position:absolute;inset:0;background:rgba(13,8,4,0.9);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:150;padding:20px;text-align:center}
+.tutorial.hidden{display:none}
+.tut-step{max-width:440px}
+.tut-step h3{font-size:20px;color:#c4956a;margin-bottom:14px}
+.tut-step p{font-size:13px;color:#8a7a60;line-height:1.8;margin-bottom:20px}
+.tut-next{padding:10px 32px;background:none;border:1px solid #6a5a48;border-radius:20px;color:#c4956a;font-size:13px;cursor:pointer}
+</style>
+</head>
+<body>
+
+<!-- ── Title Screen ── -->
+<div id="title-screen">
+    <button class="lang-toggle" onclick="toggleLang()" id="lang-btn">EN</button>
+    <div class="title-year">1518</div>
+    <div class="title-main" data-i="titleMain">踊り病</div>
+    <div class="title-sub" data-i="titleSub">STRASBOURG</div>
+    <div class="title-desc" data-i="titleDesc">1518年7月、ストラスブールの路上で一人の女性が踊り始めた。理由もなく、音楽もなく。一週間後、34人が踊っていた。一ヶ月後、400人。当局は「もっと踊らせれば治る」と音楽家を雇い、舞台を作った。踊りは止まらなかった——。</div>
+    <button class="title-start" onclick="startGame()" data-i="titleStart">はじめる</button>
+</div>
+
+<!-- ── Game Container ── -->
+<div id="game-container">
+    <div class="top-bar">
+        <div class="stat"><span class="stat-icon">📅</span><span class="day-label" id="day-label">1日目</span></div>
+        <div class="stat"><span class="stat-icon">💃</span><span data-i="statDancers">踊り人</span>: <span class="stat-val" id="dancer-count">1</span></div>
+        <div class="stat"><span class="stat-icon">👥</span><span data-i="statPop">住民</span>: <span class="stat-val" id="pop-count">200</span></div>
+        <div class="stat"><span class="stat-icon">😰</span><span data-i="statStress">ストレス</span>: <span class="stat-val" id="stress-level">60</span>%</div>
+        <div class="stat"><span class="stat-icon">💰</span><span class="stat-val" id="gold-count">100</span></div>
+    </div>
+    <canvas id="game-canvas"></canvas>
+    <div class="event-log" id="event-log"></div>
+    <div class="bottom-panel">
+        <div class="actions" id="actions"></div>
+    </div>
+</div>
+
+<!-- ── Tutorial ── -->
+<div class="tutorial hidden" id="tutorial">
+    <div class="tut-step" id="tut-content"></div>
+</div>
+
+<!-- ── Result Screen ── -->
+<div id="result-screen">
+    <div class="result-title" id="result-title"></div>
+    <div class="result-subtitle" id="result-subtitle"></div>
+    <div class="result-stats" id="result-stats"></div>
+    <div class="insight-box">
+        <div class="insight-label" data-i="insightLabel">Historical Insight</div>
+        <div class="insight-text" id="insight-text"></div>
+    </div>
+    <button class="result-btn" onclick="restartGame()" data-i="resultRestart">もう一度</button>
+</div>
+
+<script>
+// ══════════════════════════════════════════════
+//  踊り病 1518 — The Dancing Plague
+//  A contagion-management strategy game
+// ══════════════════════════════════════════════
+
+let LANG = 'ja';
+const I18N = {
+ja: {
+    titleMain: '踊り病',
+    titleSub: 'STRASBOURG',
+    titleDesc: '1518年7月、ストラスブールの路上で一人の女性が踊り始めた。理由もなく、音楽もなく。一週間後、34人が踊っていた。一ヶ月後、400人。当局は「もっと踊らせれば治る」と音楽家を雇い、舞台を作った。踊りは止まらなかった——。',
+    titleStart: 'はじめる',
+    statDancers: '踊り人',
+    statPop: '住民',
+    statStress: 'ストレス',
+    insightLabel: '歴史の教訓',
+    resultRestart: 'もう一度',
+    day: '日目',
+    actQuarantine: '隔離',
+    actQuarantineDesc: '踊り人を囲い込む',
+    actMusicians: '音楽家を雇う',
+    actMusiciansDesc: '踊らせて治す…？',
+    actPrayer: '祈祷会',
+    actPrayerDesc: '教会で祈る',
+    actDoctors: '医者を呼ぶ',
+    actDoctorsDesc: '瀉血治療を試す',
+    actFood: '食料配給',
+    actFoodDesc: '飢えを和らげる',
+    actBanGather: '集会禁止',
+    actBanGatherDesc: '人の密集を防ぐ',
+    actShrine: '聖地巡礼',
+    actShrineDesc: '根本原因に向き合う',
+    costGold: '💰',
+    logStart: 'フラウ・トロッフェアが街角で踊り始めた…',
+    logMusicians: '🎵 音楽家が演奏を始めた！踊りが激しくなる…',
+    logMusiciansEffect: '⚠️ 踊り人が急増！当局の策が裏目に出た',
+    logQuarantine: '🚧 踊り人を隔離区域に移した',
+    logPrayer: '⛪ 住民が教会で祈りを捧げている',
+    logDoctors: '🏥 医者が到着。瀉血を試みる…',
+    logFood: '🍞 食料を配給。住民の不安が和らぐ',
+    logBan: '🚫 集会を禁止。人々が散らばる',
+    logShrine: '⛰️ 巡礼団が聖ヴィート聖堂へ出発した',
+    logShrineReturn: '✨ 巡礼団が戻った。心の平安を得た住民たち',
+    logDeath: '💀 踊り続けた住民が倒れた…',
+    logNewDancers: '💃 新たに{n}人が踊り始めた',
+    logRecovery: '🙏 {n}人が踊りをやめた',
+    logDayBreak: '── {n}日目 ──',
+    winTitle: '踊りが止まった',
+    winSubtitle: '街に平穏が戻った。しかし、人々はあの日々を忘れない。',
+    loseTitle: '街は踊り続ける',
+    loseSubtitle: 'ストラスブール全体が踊りの渦に飲み込まれた。',
+    statDays: '経過日数',
+    statPeak: '最大踊り人数',
+    statDead: '犠牲者',
+    statActions: '実行した施策',
+    insightWin: '実際の1518年、踊りが収まったのは音楽家でも医者でもなく、人々を聖ヴィートの聖堂へ巡礼させ、赤い靴を履かせて祈りを捧げさせたときだった。当局が「症状」ではなく「苦しみの根本」——飢饉、疫病、精神的絶望——に向き合ったとき、ようやく踊りは止まった。\n\n問題の表面だけを見て「もっとやれ」と対処すると、事態は悪化する。本当の解決は、目に見えない苦しみに寄り添うことから始まる。',
+    insightLose: '1518年、当局は最初「もっと踊らせれば疲れて止まる」と考え、音楽家を雇い、舞台まで作った。結果、踊りはさらに広がった。善意の介入が、問題の本質を見誤ると、かえって傷を深くする。\n\n表面的な症状への対処は、根本原因から目を逸らす。飢え、恐怖、絶望——見えない苦しみに気づけたとき、はじめて治療が始まる。',
+    tutStep1Title: '1518年 ストラスブール',
+    tutStep1Text: 'ペストと飢饉に苦しむ街で、一人の女性が踊り始めた。あなたは街の長として、この奇妙な疫病に立ち向かわねばならない。',
+    tutStep1Btn: '次へ',
+    tutStep2Title: '遊び方',
+    tutStep2Text: '下のボタンで施策を実行できる。各施策にはコストとクールダウンがある。\n\n💃 踊り人を0にすれば勝利\n😰 ストレスが高いほど感染が広がる\n💰 ゴールドで施策を実行\n\n⚠️ すべての施策が正しいとは限らない——',
+    tutStep2Btn: 'はじめる',
+},
+en: {
+    titleMain: 'The Dancing Plague',
+    titleSub: 'STRASBOURG',
+    titleDesc: 'July 1518. A woman begins to dance on the streets of Strasbourg. No music, no reason. After one week, 34 are dancing. After one month, 400. The authorities hire musicians and build a stage, believing "more dancing will cure them." The dancing does not stop.',
+    titleStart: 'BEGIN',
+    statDancers: 'Dancers',
+    statPop: 'Citizens',
+    statStress: 'Stress',
+    insightLabel: 'Historical Insight',
+    resultRestart: 'Play Again',
+    day: '',
+    actQuarantine: 'Quarantine',
+    actQuarantineDesc: 'Isolate the dancers',
+    actMusicians: 'Hire Musicians',
+    actMusiciansDesc: 'Dance it out…?',
+    actPrayer: 'Mass Prayer',
+    actPrayerDesc: 'Pray at the church',
+    actDoctors: 'Call Doctors',
+    actDoctorsDesc: 'Try bloodletting',
+    actFood: 'Distribute Food',
+    actFoodDesc: 'Ease the hunger',
+    actBanGather: 'Ban Gatherings',
+    actBanGatherDesc: 'Prevent crowds',
+    actShrine: 'Pilgrimage',
+    actShrineDesc: 'Address root causes',
+    costGold: '💰',
+    logStart: 'Frau Troffea begins dancing on the street…',
+    logMusicians: '🎵 Musicians begin playing! The dancing intensifies…',
+    logMusiciansEffect: '⚠️ Dancers multiply! The authorities\' plan backfires',
+    logQuarantine: '🚧 Dancers moved to a quarantine zone',
+    logPrayer: '⛪ Citizens gather at the church to pray',
+    logDoctors: '🏥 Doctors arrive. They attempt bloodletting…',
+    logFood: '🍞 Food distributed. Citizens feel less desperate',
+    logBan: '🚫 Gatherings banned. People disperse',
+    logShrine: '⛰️ A pilgrimage party departs for the Shrine of St. Vitus',
+    logShrineReturn: '✨ The pilgrims return. Peace has been restored',
+    logDeath: '💀 A dancer has collapsed from exhaustion…',
+    logNewDancers: '💃 {n} more people begin dancing',
+    logRecovery: '🙏 {n} people stop dancing',
+    logDayBreak: '── Day {n} ──',
+    winTitle: 'The Dancing Stops',
+    winSubtitle: 'Peace returns to Strasbourg. But the memory lingers.',
+    loseTitle: 'The City Dances On',
+    loseSubtitle: 'All of Strasbourg is consumed by the dance.',
+    statDays: 'Days elapsed',
+    statPeak: 'Peak dancers',
+    statDead: 'Casualties',
+    statActions: 'Actions taken',
+    insightWin: 'In the real 1518, the dancing stopped not because of musicians or doctors, but when the people were taken on a pilgrimage to the Shrine of St. Vitus, given red shoes, and allowed to pray. The authorities finally addressed the root causes — famine, plague, and spiritual despair.\n\nWhen you only see the surface of a problem and push "more of the same," things get worse. Real solutions begin with seeing the invisible suffering underneath.',
+    insightLose: 'In 1518, authorities first thought "let them dance until they tire" and hired musicians, even building a stage. The result: the dancing spread further. Well-intentioned intervention, when it misreads the problem, deepens the wound.\n\nTreating symptoms diverts attention from root causes. Hunger, fear, despair — only when we notice the invisible suffering can healing begin.',
+    tutStep1Title: 'Strasbourg, 1518',
+    tutStep1Text: 'In a city ravaged by plague and famine, a woman begins to dance. As the city elder, you must confront this strange epidemic.',
+    tutStep1Btn: 'Next',
+    tutStep2Title: 'How to Play',
+    tutStep2Text: 'Use the action buttons below to enact policies. Each has a cost and cooldown.\n\n💃 Reduce dancers to 0 to win\n😰 Higher stress = faster spread\n💰 Gold funds your actions\n\n⚠️ Not every action helps —',
+    tutStep2Btn: 'Start',
+}
+};
+
+function t(key) { return (I18N[LANG] || I18N.ja)[key] || key; }
+
+function toggleLang() {
+    LANG = LANG === 'ja' ? 'en' : 'ja';
+    document.getElementById('lang-btn').textContent = LANG === 'ja' ? 'EN' : 'JA';
+    applyI18n();
+}
+
+function applyI18n() {
+    document.querySelectorAll('[data-i]').forEach(el => {
+        const key = el.getAttribute('data-i');
+        if (I18N[LANG][key]) el.textContent = I18N[LANG][key];
+    });
+}
+
+// ══════════════════════════════════
+//  GAME STATE
+// ══════════════════════════════════
+
+const TILE = 6;
+const CITIZEN_COUNT = 200;
+const MAX_DAYS = 60;
+
+let state, citizens, buildings, particles, canvas, ctx;
+let animId, lastTick, tickInterval;
+let mapW, mapH;
+
+function initState() {
+    return {
+        day: 1,
+        tickCount: 0,
+        dancers: 1,
+        totalPop: CITIZEN_COUNT,
+        alivePop: CITIZEN_COUNT,
+        stress: 60,
+        gold: 100,
+        goldPerDay: 8,
+        dead: 0,
+        peakDancers: 1,
+        actionsUsed: 0,
+        musicianActive: false,
+        musicianTimer: 0,
+        quarantineZone: null,
+        shrineActive: false,
+        shrineTimer: 0,
+        banActive: false,
+        banTimer: 0,
+        prayerActive: false,
+        prayerTimer: 0,
+        gameOver: false,
+        won: false,
+        cooldowns: {},
+        logs: [],
+        tutorialStep: 0,
+        tutorialDone: false,
+    };
+}
+
+// ══════════════════════════════════
+//  MAP & BUILDINGS
+// ══════════════════════════════════
+
+function generateMap() {
+    buildings = [];
+    const bw = mapW, bh = mapH;
+    const colors = ['#3a2a18','#2a1a10','#4a3a20','#352818','#2e1e0e','#3e2e16'];
+    const roofColors = ['#6a3a2a','#5a2a1a','#7a4a30','#4a2a1a','#8a5a3a','#5a3020'];
+
+    // Church (center-ish, large)
+    const cx = Math.floor(bw * 0.5);
+    const cy = Math.floor(bh * 0.35);
+    buildings.push({ x: cx-20, y: cy-24, w: 40, h: 48, color: '#4a3a28', roof: '#7a5a3a', type: 'church', cross: true });
+
+    // Market square
+    const mx = Math.floor(bw * 0.5);
+    const my = Math.floor(bh * 0.65);
+    buildings.push({ x: mx-30, y: my-6, w: 60, h: 12, color: '#2a2018', roof: '#5a4a30', type: 'market' });
+
+    // Houses scattered
+    for (let i = 0; i < 45; i++) {
+        let x, y, w, h, tries = 0;
+        do {
+            w = 12 + Math.floor(Math.random() * 16);
+            h = 10 + Math.floor(Math.random() * 14);
+            x = 10 + Math.floor(Math.random() * (bw - w - 20));
+            y = 10 + Math.floor(Math.random() * (bh - h - 20));
+            tries++;
+        } while (tries < 30 && buildings.some(b =>
+            x < b.x + b.w + 6 && x + w + 6 > b.x && y < b.y + b.h + 6 && y + h + 6 > b.y
+        ));
+        if (tries < 30) {
+            buildings.push({
+                x, y, w, h,
+                color: colors[Math.floor(Math.random() * colors.length)],
+                roof: roofColors[Math.floor(Math.random() * roofColors.length)],
+                type: 'house'
+            });
+        }
+    }
+}
+
+// ══════════════════════════════════
+//  CITIZENS
+// ══════════════════════════════════
+
+function spawnCitizens() {
+    citizens = [];
+    for (let i = 0; i < CITIZEN_COUNT; i++) {
+        citizens.push(createCitizen(i === 0));
+    }
+}
+
+function createCitizen(isDancer) {
+    let x, y;
+    do {
+        x = 10 + Math.random() * (mapW - 20);
+        y = 10 + Math.random() * (mapH - 20);
+    } while (isInsideBuilding(x, y));
+
+    return {
+        x, y,
+        vx: (Math.random() - 0.5) * 0.6,
+        vy: (Math.random() - 0.5) * 0.6,
+        dancing: isDancer,
+        danceTimer: isDancer ? 999 : 0,
+        dancePhase: Math.random() * Math.PI * 2,
+        alive: true,
+        recovering: false,
+        recoverTimer: 0,
+        exhaustion: 0,
+        quarantined: false,
+        pilgrim: false,
+        size: 2 + Math.random() * 1.5,
+    };
+}
+
+function isInsideBuilding(x, y) {
+    return buildings.some(b => x > b.x && x < b.x + b.w && y > b.y && y < b.y + b.h);
+}
+
+// ══════════════════════════════════
+//  PARTICLES
+// ══════════════════════════════════
+
+particles = [];
+
+function addParticle(x, y, type) {
+    const colors = {
+        note: ['#c4956a','#a87a50','#dab080'],
+        prayer: ['#8ab0d0','#6a90b0','#aac8e0'],
+        heal: ['#80c090','#60a070','#a0d0b0'],
+        death: ['#8a4040','#6a2020','#a06060'],
+        food: ['#c0a060','#a08040','#d0b080'],
+    };
+    const c = colors[type] || colors.note;
+    for (let i = 0; i < 3; i++) {
+        particles.push({
+            x: x + (Math.random()-0.5)*6,
+            y: y + (Math.random()-0.5)*6,
+            vx: (Math.random()-0.5)*1.2,
+            vy: -0.5 - Math.random()*1.5,
+            life: 40 + Math.random()*30,
+            maxLife: 40 + Math.random()*30,
+            color: c[Math.floor(Math.random()*c.length)],
+            size: 1 + Math.random()*2,
+        });
+    }
+}
+
+// ══════════════════════════════════
+//  ACTIONS
+// ══════════════════════════════════
+
+const ACTIONS = [
+    { id:'quarantine', icon:'🚧', nameKey:'actQuarantine', descKey:'actQuarantineDesc', cost:15, cooldown:8, trap:false },
+    { id:'musicians', icon:'🎵', nameKey:'actMusicians', descKey:'actMusiciansDesc', cost:20, cooldown:10, trap:true },
+    { id:'prayer', icon:'⛪', nameKey:'actPrayer', descKey:'actPrayerDesc', cost:10, cooldown:6, trap:false },
+    { id:'doctors', icon:'🏥', nameKey:'actDoctors', descKey:'actDoctorsDesc', cost:25, cooldown:8, trap:false },
+    { id:'food', icon:'🍞', nameKey:'actFood', descKey:'actFoodDesc', cost:20, cooldown:5, trap:false },
+    { id:'ban', icon:'🚫', nameKey:'actBanGather', descKey:'actBanGatherDesc', cost:10, cooldown:7, trap:false },
+    { id:'shrine', icon:'⛰️', nameKey:'actShrine', descKey:'actShrineDesc', cost:40, cooldown:15, trap:false },
+];
+
+function renderActions() {
+    const container = document.getElementById('actions');
+    container.innerHTML = '';
+    ACTIONS.forEach(act => {
+        const btn = document.createElement('button');
+        btn.className = 'action-btn' + (act.trap ? ' trap' : '');
+        const cd = state.cooldowns[act.id] || 0;
+        const canAfford = state.gold >= act.cost;
+        if (cd > 0 || !canAfford) btn.classList.add('disabled');
+
+        btn.innerHTML = `
+            <span class="act-icon">${act.icon}</span>
+            <span>${t(act.nameKey)}</span>
+            <span class="act-cost">${act.cost} ${t('costGold')}</span>
+            ${cd > 0 ? `<div class="cooldown-bar" style="width:${(cd/act.cooldown)*100}%"></div>` : ''}
+        `;
+        btn.onclick = () => executeAction(act);
+        container.appendChild(btn);
+    });
+}
+
+function executeAction(act) {
+    const cd = state.cooldowns[act.id] || 0;
+    if (cd > 0 || state.gold < act.cost || state.gameOver) return;
+
+    state.gold -= act.cost;
+    state.cooldowns[act.id] = act.cooldown;
+    state.actionsUsed++;
+
+    switch(act.id) {
+        case 'quarantine':
+            logEvent(t('logQuarantine'));
+            const dancingCitizens = citizens.filter(c => c.dancing && c.alive && !c.quarantined);
+            const toQuarantine = dancingCitizens.slice(0, Math.ceil(dancingCitizens.length * 0.4));
+            const qx = mapW * 0.85, qy = mapH * 0.85;
+            toQuarantine.forEach(c => {
+                c.quarantined = true;
+                c.x = qx + (Math.random()-0.5)*20;
+                c.y = qy + (Math.random()-0.5)*20;
+                c.vx = 0; c.vy = 0;
+            });
+            state.quarantineZone = { x: qx-15, y: qy-15, w: 30, h: 30, timer: 12 };
+            break;
+
+        case 'musicians':
+            logEvent(t('logMusicians'));
+            state.musicianActive = true;
+            state.musicianTimer = 5;
+            setTimeout(() => {
+                if (!state.gameOver) {
+                    logEvent(t('logMusiciansEffect'));
+                    const normal = citizens.filter(c => !c.dancing && c.alive);
+                    const toInfect = Math.min(Math.ceil(normal.length * 0.15), 20);
+                    for (let i = 0; i < toInfect; i++) {
+                        const idx = Math.floor(Math.random() * normal.length);
+                        if (normal[idx]) {
+                            normal[idx].dancing = true;
+                            normal[idx].danceTimer = 999;
+                            normal.splice(idx, 1);
+                        }
+                    }
+                    state.stress = Math.min(100, state.stress + 10);
+                }
+            }, 2000);
+            citizens.filter(c => c.dancing).forEach(c => {
+                addParticle(c.x, c.y, 'note');
+            });
+            break;
+
+        case 'prayer':
+            logEvent(t('logPrayer'));
+            state.prayerActive = true;
+            state.prayerTimer = 4;
+            state.stress = Math.max(0, state.stress - 8);
+            citizens.filter(c => !c.dancing && c.alive).slice(0, 15).forEach(c => {
+                addParticle(c.x, c.y, 'prayer');
+            });
+            break;
+
+        case 'doctors':
+            logEvent(t('logDoctors'));
+            const dancers = citizens.filter(c => c.dancing && c.alive);
+            const treated = dancers.slice(0, Math.min(5, dancers.length));
+            treated.forEach(c => {
+                if (Math.random() < 0.35) {
+                    c.dancing = false;
+                    c.recovering = true;
+                    c.recoverTimer = 6;
+                    addParticle(c.x, c.y, 'heal');
+                } else {
+                    c.exhaustion += 20;
+                    state.stress = Math.min(100, state.stress + 2);
+                }
+            });
+            break;
+
+        case 'food':
+            logEvent(t('logFood'));
+            state.stress = Math.max(0, state.stress - 12);
+            state.goldPerDay = Math.min(12, state.goldPerDay + 1);
+            citizens.filter(c => c.alive).slice(0, 20).forEach(c => {
+                addParticle(c.x, c.y, 'food');
+            });
+            break;
+
+        case 'ban':
+            logEvent(t('logBan'));
+            state.banActive = true;
+            state.banTimer = 8;
+            citizens.filter(c => !c.dancing && c.alive).forEach(c => {
+                c.vx = (Math.random()-0.5) * 1.5;
+                c.vy = (Math.random()-0.5) * 1.5;
+            });
+            state.stress = Math.min(100, state.stress + 5);
+            break;
+
+        case 'shrine':
+            logEvent(t('logShrine'));
+            state.shrineActive = true;
+            state.shrineTimer = 8;
+            const danceList = citizens.filter(c => c.dancing && c.alive);
+            const pilgrims = danceList.slice(0, Math.min(15, danceList.length));
+            pilgrims.forEach(c => {
+                c.pilgrim = true;
+                c.vx = 0; c.vy = -0.8;
+                addParticle(c.x, c.y, 'prayer');
+            });
+            state.stress = Math.max(0, state.stress - 15);
+            setTimeout(() => {
+                if (!state.gameOver) {
+                    logEvent(t('logShrineReturn'));
+                    pilgrims.forEach(c => {
+                        if (c.alive) {
+                            c.dancing = false;
+                            c.pilgrim = false;
+                            c.recovering = true;
+                            c.recoverTimer = 10;
+                            c.exhaustion = 0;
+                            addParticle(c.x, c.y, 'heal');
+                        }
+                    });
+                    state.stress = Math.max(0, state.stress - 10);
+                }
+            }, 6000);
+            break;
+    }
+
+    renderActions();
+    updateStats();
+}
+
+// ══════════════════════════════════
+//  GAME LOOP
+// ══════════════════════════════════
+
+function gameTick() {
+    if (state.gameOver) return;
+    state.tickCount++;
+
+    // Day cycle: ~60 ticks per day
+    if (state.tickCount % 60 === 0) {
+        state.day++;
+        state.gold += state.goldPerDay;
+        logEvent(t('logDayBreak').replace('{n}', state.day));
+
+        // Reduce cooldowns
+        Object.keys(state.cooldowns).forEach(k => {
+            if (state.cooldowns[k] > 0) state.cooldowns[k]--;
+        });
+
+        // Reduce timers
+        if (state.musicianTimer > 0) { state.musicianTimer--; if (state.musicianTimer <= 0) state.musicianActive = false; }
+        if (state.shrineTimer > 0) { state.shrineTimer--; if (state.shrineTimer <= 0) state.shrineActive = false; }
+        if (state.banTimer > 0) { state.banTimer--; if (state.banTimer <= 0) state.banActive = false; }
+        if (state.prayerTimer > 0) { state.prayerTimer--; if (state.prayerTimer <= 0) state.prayerActive = false; }
+        if (state.quarantineZone) { state.quarantineZone.timer--; if (state.quarantineZone.timer <= 0) {
+            citizens.filter(c => c.quarantined).forEach(c => c.quarantined = false);
+            state.quarantineZone = null;
+        }}
+
+        // Natural stress drift
+        state.stress = Math.min(100, state.stress + 2);
+
+        renderActions();
+    }
+
+    // Spread dancing
+    if (state.tickCount % 20 === 0) {
+        const spreadChance = 0.02 + (state.stress / 100) * 0.06;
+        const musicBonus = state.musicianActive ? 0.08 : 0;
+        const banPenalty = state.banActive ? -0.02 : 0;
+
+        citizens.forEach(c => {
+            if (!c.dancing || !c.alive || c.quarantined || c.pilgrim) return;
+            citizens.forEach(other => {
+                if (other.dancing || !other.alive || other.recovering || other.quarantined || other.pilgrim) return;
+                const dx = c.x - other.x;
+                const dy = c.y - other.y;
+                const dist = Math.sqrt(dx*dx + dy*dy);
+                if (dist < 20) {
+                    if (Math.random() < spreadChance + musicBonus + banPenalty) {
+                        other.dancing = true;
+                        other.danceTimer = 999;
+                        addParticle(other.x, other.y, 'note');
+                    }
+                }
+            });
+        });
+    }
+
+    // Exhaustion and death
+    if (state.tickCount % 30 === 0) {
+        citizens.filter(c => c.dancing && c.alive).forEach(c => {
+            c.exhaustion += 1;
+            if (c.exhaustion > 80 && Math.random() < 0.08) {
+                c.alive = false;
+                c.dancing = false;
+                state.dead++;
+                state.alivePop--;
+                addParticle(c.x, c.y, 'death');
+                logEvent(t('logDeath'));
+            }
+        });
+    }
+
+    // Natural recovery (small chance, higher when stress is low)
+    if (state.tickCount % 40 === 0) {
+        const recoveryChance = Math.max(0, (100 - state.stress) / 100) * 0.03;
+        let recovered = 0;
+        citizens.filter(c => c.dancing && c.alive && !c.quarantined && !c.pilgrim).forEach(c => {
+            if (Math.random() < recoveryChance) {
+                c.dancing = false;
+                c.recovering = true;
+                c.recoverTimer = 8;
+                recovered++;
+                addParticle(c.x, c.y, 'heal');
+            }
+        });
+        if (recovered > 0) {
+            logEvent(t('logRecovery').replace('{n}', recovered));
+        }
+    }
+
+    // Recovery cooldown
+    citizens.filter(c => c.recovering).forEach(c => {
+        if (state.tickCount % 60 === 0) {
+            c.recoverTimer--;
+            if (c.recoverTimer <= 0) c.recovering = false;
+        }
+    });
+
+    // Update counts
+    state.dancers = citizens.filter(c => c.dancing && c.alive).length;
+    state.peakDancers = Math.max(state.peakDancers, state.dancers);
+
+    // Report new dancers periodically
+    if (state.tickCount % 60 === 0) {
+        const currentDancers = citizens.filter(c => c.dancing && c.alive).length;
+        if (currentDancers > 1 && state.tickCount > 60) {
+            // Already logged via events
+        }
+    }
+
+    // Check win/lose
+    if (state.dancers === 0 && state.day > 1) {
+        endGame(true);
+    } else if (state.dancers >= state.alivePop * 0.8 || state.day >= MAX_DAYS) {
+        endGame(false);
+    }
+
+    updateStats();
+}
+
+function updateStats() {
+    document.getElementById('dancer-count').textContent = state.dancers;
+    document.getElementById('pop-count').textContent = state.alivePop;
+    document.getElementById('stress-level').textContent = state.stress;
+    document.getElementById('gold-count').textContent = state.gold;
+    const dayText = LANG === 'ja' ? `${state.day}${t('day')}` : `Day ${state.day}`;
+    document.getElementById('day-label').textContent = dayText;
+
+    // Color stress
+    const stressEl = document.getElementById('stress-level');
+    if (state.stress >= 80) stressEl.style.color = '#d04040';
+    else if (state.stress >= 50) stressEl.style.color = '#c4956a';
+    else stressEl.style.color = '#80c090';
+}
+
+function logEvent(msg) {
+    state.logs.push(msg);
+    if (state.logs.length > 50) state.logs.shift();
+    document.getElementById('event-log').textContent = msg;
+}
+
+// ══════════════════════════════════
+//  RENDERING
+// ══════════════════════════════════
+
+function render() {
+    if (!ctx) return;
+    const w = canvas.width, h = canvas.height;
+    const scaleX = w / mapW, scaleY = h / mapH;
+    const scale = Math.min(scaleX, scaleY);
+    const ox = (w - mapW * scale) / 2;
+    const oy = (h - mapH * scale) / 2;
+
+    // Background
+    const nightFactor = 0;
+    ctx.fillStyle = '#1a1a10';
+    ctx.fillRect(0, 0, w, h);
+
+    ctx.save();
+    ctx.translate(ox, oy);
+    ctx.scale(scale, scale);
+
+    // Ground
+    ctx.fillStyle = '#2a2418';
+    ctx.fillRect(0, 0, mapW, mapH);
+
+    // Roads (simple grid)
+    ctx.fillStyle = '#221e14';
+    ctx.fillRect(mapW*0.48, 0, 4, mapH);
+    ctx.fillRect(0, mapH*0.5, mapW, 3);
+    ctx.fillRect(mapW*0.25, mapH*0.3, mapW*0.5, 3);
+
+    // Buildings
+    buildings.forEach(b => {
+        // Shadow
+        ctx.fillStyle = 'rgba(0,0,0,0.3)';
+        ctx.fillRect(b.x+2, b.y+2, b.w, b.h);
+        // Wall
+        ctx.fillStyle = b.color;
+        ctx.fillRect(b.x, b.y, b.w, b.h);
+        // Roof
+        ctx.fillStyle = b.roof;
+        ctx.fillRect(b.x, b.y, b.w, 3);
+        // Church cross
+        if (b.cross) {
+            ctx.fillStyle = '#c4956a';
+            ctx.fillRect(b.x + b.w/2 - 1, b.y - 8, 2, 10);
+            ctx.fillRect(b.x + b.w/2 - 4, b.y - 6, 8, 2);
+        }
+        // Windows
+        ctx.fillStyle = '#1a1208';
+        if (b.type === 'church') {
+            for (let wx = b.x+6; wx < b.x+b.w-4; wx += 8) {
+                ctx.fillRect(wx, b.y+10, 3, 5);
+                ctx.fillRect(wx, b.y+25, 3, 5);
+            }
+        } else if (b.w > 14) {
+            ctx.fillRect(b.x+3, b.y+4, 2, 2);
+            ctx.fillRect(b.x+b.w-5, b.y+4, 2, 2);
+        }
+    });
+
+    // Quarantine zone
+    if (state.quarantineZone) {
+        const qz = state.quarantineZone;
+        ctx.strokeStyle = '#c04040';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([3,3]);
+        ctx.strokeRect(qz.x, qz.y, qz.w, qz.h);
+        ctx.setLineDash([]);
+    }
+
+    // Citizens
+    const time = performance.now() / 1000;
+    citizens.forEach(c => {
+        if (!c.alive) {
+            // Dead citizen (small cross)
+            ctx.fillStyle = 'rgba(100,60,60,0.5)';
+            ctx.fillRect(c.x-1, c.y-2, 2, 4);
+            ctx.fillRect(c.x-2, c.y-1, 4, 2);
+            return;
+        }
+
+        // Movement
+        if (!c.quarantined && !c.pilgrim) {
+            c.x += c.vx;
+            c.y += c.vy;
+
+            // Bounce off edges
+            if (c.x < 3 || c.x > mapW-3) c.vx *= -1;
+            if (c.y < 3 || c.y > mapH-3) c.vy *= -1;
+            c.x = Math.max(3, Math.min(mapW-3, c.x));
+            c.y = Math.max(3, Math.min(mapH-3, c.y));
+
+            // Building collision
+            buildings.forEach(b => {
+                if (c.x > b.x-1 && c.x < b.x+b.w+1 && c.y > b.y-1 && c.y < b.y+b.h+1) {
+                    c.vx *= -1; c.vy *= -1;
+                    c.x += c.vx * 2;
+                    c.y += c.vy * 2;
+                }
+            });
+
+            // Random direction change
+            if (Math.random() < 0.01) {
+                c.vx = (Math.random()-0.5) * (c.dancing ? 1.2 : 0.5);
+                c.vy = (Math.random()-0.5) * (c.dancing ? 1.2 : 0.5);
+            }
+
+            // Ban active: move away from each other
+            if (state.banActive && !c.dancing && Math.random() < 0.05) {
+                const nearest = citizens.find(o => o !== c && o.alive && !o.quarantined);
+                if (nearest) {
+                    const dx = c.x - nearest.x;
+                    const dy = c.y - nearest.y;
+                    const d = Math.sqrt(dx*dx+dy*dy) || 1;
+                    c.vx = (dx/d) * 0.6;
+                    c.vy = (dy/d) * 0.6;
+                }
+            }
+        }
+
+        // Pilgrim movement (drift upward off screen then return)
+        if (c.pilgrim) {
+            c.y -= 0.3;
+            if (c.y < -10) c.y = -10;
+        }
+
+        // Draw citizen
+        let drawX = c.x, drawY = c.y;
+        let color = '#6a8a60'; // normal green
+
+        if (c.dancing) {
+            // Dancing animation: bobbing + color pulse
+            const phase = time * 4 + c.dancePhase;
+            drawX += Math.sin(phase) * 2.5;
+            drawY += Math.cos(phase * 1.3) * 2;
+            const pulse = 0.5 + Math.sin(phase * 2) * 0.5;
+            const r = Math.floor(200 + pulse * 55);
+            const g = Math.floor(80 + pulse * 40);
+            const b = Math.floor(60 + pulse * 40);
+            color = `rgb(${r},${g},${b})`;
+
+            // Glow
+            ctx.beginPath();
+            ctx.arc(drawX, drawY, c.size + 4, 0, Math.PI*2);
+            ctx.fillStyle = `rgba(200,100,60,${0.1 + pulse*0.1})`;
+            ctx.fill();
+
+            // Music notes for musician effect
+            if (state.musicianActive && Math.random() < 0.02) {
+                addParticle(c.x, c.y, 'note');
+            }
+        } else if (c.recovering) {
+            color = '#80a0c0';
+        } else if (c.quarantined) {
+            color = '#a08060';
+        }
+
+        // Body
+        ctx.beginPath();
+        ctx.arc(drawX, drawY, c.size, 0, Math.PI*2);
+        ctx.fillStyle = color;
+        ctx.fill();
+
+        // Head
+        ctx.beginPath();
+        ctx.arc(drawX, drawY - c.size - 1, c.size * 0.6, 0, Math.PI*2);
+        ctx.fillStyle = '#d4b896';
+        ctx.fill();
+    });
+
+    // Particles
+    for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vy += 0.01;
+        p.life--;
+        if (p.life <= 0) { particles.splice(i, 1); continue; }
+        const alpha = p.life / p.maxLife;
+        ctx.globalAlpha = alpha;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI*2);
+        ctx.fillStyle = p.color;
+        ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    // Musician indicator
+    if (state.musicianActive) {
+        ctx.fillStyle = 'rgba(196,149,106,0.3)';
+        ctx.font = '12px sans-serif';
+        ctx.fillText('♫', mapW*0.48, mapH*0.63);
+        ctx.fillText('♪', mapW*0.52, mapH*0.67);
+    }
+
+    ctx.restore();
+}
+
+// ══════════════════════════════════
+//  GAME LIFECYCLE
+// ══════════════════════════════════
+
+function startGame() {
+    document.getElementById('title-screen').classList.add('hidden');
+    document.getElementById('game-container').classList.add('active');
+
+    canvas = document.getElementById('game-canvas');
+    ctx = canvas.getContext('2d');
+    resizeCanvas();
+
+    const aspect = canvas.clientWidth / canvas.clientHeight;
+    if (aspect > 1) {
+        mapW = 400;
+        mapH = Math.round(400 / aspect);
+    } else {
+        mapH = 400;
+        mapW = Math.round(400 * aspect);
+    }
+
+    state = initState();
+    generateMap();
+    spawnCitizens();
+    particles = [];
+
+    logEvent(t('logStart'));
+    renderActions();
+    updateStats();
+
+    // Show tutorial
+    showTutorial(0);
+
+    lastTick = performance.now();
+    tickInterval = setInterval(gameTick, 100);
+    gameLoop();
+}
+
+function gameLoop() {
+    if (state && !state.gameOver) {
+        render();
+        animId = requestAnimationFrame(gameLoop);
+    }
+}
+
+function resizeCanvas() {
+    if (!canvas) return;
+    canvas.width = canvas.clientWidth * (window.devicePixelRatio || 1);
+    canvas.height = canvas.clientHeight * (window.devicePixelRatio || 1);
+}
+
+function showTutorial(step) {
+    const tut = document.getElementById('tutorial');
+    const content = document.getElementById('tut-content');
+    tut.classList.remove('hidden');
+
+    if (step === 0) {
+        content.innerHTML = `
+            <h3>${t('tutStep1Title')}</h3>
+            <p style="white-space:pre-line">${t('tutStep1Text')}</p>
+            <button class="tut-next" onclick="showTutorial(1)">${t('tutStep1Btn')}</button>
+        `;
+    } else if (step === 1) {
+        content.innerHTML = `
+            <h3>${t('tutStep2Title')}</h3>
+            <p style="white-space:pre-line">${t('tutStep2Text')}</p>
+            <button class="tut-next" onclick="closeTutorial()">${t('tutStep2Btn')}</button>
+        `;
+    }
+}
+
+function closeTutorial() {
+    document.getElementById('tutorial').classList.add('hidden');
+    state.tutorialDone = true;
+}
+
+function endGame(won) {
+    state.gameOver = true;
+    state.won = won;
+    clearInterval(tickInterval);
+    cancelAnimationFrame(animId);
+
+    // Final render
+    render();
+
+    setTimeout(() => {
+        const rs = document.getElementById('result-screen');
+        rs.classList.add('active');
+
+        document.getElementById('result-title').textContent = won ? t('winTitle') : t('loseTitle');
+        document.getElementById('result-subtitle').textContent = won ? t('winSubtitle') : t('loseSubtitle');
+
+        document.getElementById('result-stats').innerHTML = `
+            <div class="result-stat">${t('statDays')}: <span>${state.day}</span></div>
+            <div class="result-stat">${t('statPeak')}: <span>${state.peakDancers}</span></div>
+            <div class="result-stat">${t('statDead')}: <span>${state.dead}</span></div>
+            <div class="result-stat">${t('statActions')}: <span>${state.actionsUsed}</span></div>
+        `;
+
+        document.getElementById('insight-text').style.whiteSpace = 'pre-line';
+        document.getElementById('insight-text').textContent = won ? t('insightWin') : t('insightLose');
+    }, 1500);
+}
+
+function restartGame() {
+    document.getElementById('result-screen').classList.remove('active');
+    state = initState();
+    generateMap();
+    spawnCitizens();
+    particles = [];
+
+    logEvent(t('logStart'));
+    renderActions();
+    updateStats();
+
+    lastTick = performance.now();
+    tickInterval = setInterval(gameTick, 100);
+    gameLoop();
+}
+
+// ══════════════════════════════════
+//  INIT
+// ══════════════════════════════════
+
+window.addEventListener('resize', resizeCanvas);
+
+// Auto-detect language
+const nav = (navigator.language || 'ja').toLowerCase();
+if (nav.startsWith('en')) { LANG = 'en'; document.getElementById('lang-btn').textContent = 'JA'; applyI18n(); }
+</script>
+</body>
+</html>
